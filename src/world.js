@@ -87,9 +87,9 @@ function building(parent,x,z,width,depth,height,color,roof,y=0) {
 function lanterns(parent) {
   const flags = [0xcd633e,0xf0bd50,0x4c8198,0xf5dfb6,0x678468];
   for (const z of [-12,8,23]) {
-    box(parent,0x504339,-7,2.7,z,.15,5.4,.15);
-    box(parent,0x504339,7,2.7,z,.15,5.4,.15);
-    box(parent,0x504339,0,5.22,z,14,.055,.055);
+    box(parent,0x504339,-16,2.7,z,.15,5.4,.15);
+    box(parent,0x504339,16,2.7,z,.15,5.4,.15);
+    box(parent,0x504339,0,5.22,z,32,.055,.055);
     for(let i=0;i<15;i++) box(parent,flags[i%5],-6.5+i*.93,4.95,z,.58,.5,.08).rotation.z = (i-7)*.03;
   }
 }
@@ -143,7 +143,7 @@ function districtTown(district,index) {
   if(index!==3) colliders.push([district.x+(index===4?-7:0),-37,index===1?4.3:6.4,index===1?7:4.6]);
 }
 
-function figure(color,skin=0xbb825e) {
+function figure(color,skin=0xbb825e,style=0) {
   const group = new THREE.Group();
   const limbs = new THREE.CapsuleGeometry(.112,.41,3,8);
   const legs = [-.145,.145].map(x=>{
@@ -170,6 +170,14 @@ function figure(color,skin=0xbb825e) {
   const hair=mesh(group,new THREE.SphereGeometry(.233,12,8,0,Math.PI*2,0,Math.PI*.57),0x342c27,0,1.65,-.023);
   hair.scale.y=1.15;
   for(const x of [-.082,.082]) box(group,0x342c27,x,1.65,.209,.035,.038,.025);
+  if(style===2 || style===3) {
+    const backHair=mesh(group,new THREE.CapsuleGeometry(.21,.37,4,10),0x342c27,0,1.45,-.10);
+    backHair.scale.z=.62;
+    const coat=mesh(group,new THREE.CylinderGeometry(.23,.32,.36,10),color,0,.73,0);
+    coat.scale.z=.75;
+  } else {
+    box(group,0x354744,0,.73,0,.47,.13,.35);
+  }
   group.userData.legs = legs;
   return group;
 }
@@ -197,20 +205,17 @@ people.forEach((person,index)=>{
   characters.push(character);
 });
 
-const player = figure(0x4b776c,0xbd885f);
-for(const part of player.children) {
-  if(part.userData.avatarTint || part.userData.avatarSkin) part.material=part.material.clone();
-}
+let player = figure(0x4b776c,0xbd885f);
 scene.add(player);
 player.visible = false;
 const visitors = new Map();
 const onlineButton = $('online');
 const presenceStatus = $('presence');
 const avatarStyles = [
-  {name:'Pine',color:0x4b776c,skin:0xbd885f},
-  {name:'Marigold',color:0xc58a36,skin:0x9e653f},
-  {name:'Glacier',color:0x4b75af,skin:0xd8aa87},
-  {name:'Rhododendron',color:0xac5273,skin:0xae734f},
+  {name:'Male · Pine',color:0x4b776c,skin:0xbd885f},
+  {name:'Male · Marigold',color:0xc58a36,skin:0x9e653f},
+  {name:'Female · Glacier',color:0x4b75af,skin:0xd8aa87},
+  {name:'Female · Rhododendron',color:0xac5273,skin:0xae734f},
 ];
 let savedProfile = {};
 try { savedProfile = JSON.parse(localStorage.getItem('walkProfile') || '{}') || {}; } catch {}
@@ -236,7 +241,7 @@ async function syncPresence(session) {
   const district = activeDistrict;
   const body = JSON.stringify({
     id:session.id,district,x:player.position.x-districts[district].x,
-    z:player.position.z,yaw:player.rotation.y,name:session.name,avatar:session.avatar
+    z:player.position.z,yaw:player.rotation.y,name:session.name,avatar:session.avatar,designation:session.designation
   });
   try {
     const response = await fetch('/api/presence',{
@@ -254,10 +259,15 @@ async function syncPresence(session) {
       let avatar=visitors.get(person.id);
       if(!avatar) {
         const style=avatarStyles[person.avatar] || avatarStyles[0];
-        avatar=figure(style.color,style.skin);
+        avatar=figure(style.color,style.skin,person.avatar);
         const badge=label(person.name || 'Guest',3.2,'#684054');
         badge.position.y=2.25;
         avatar.add(badge);
+        if(person.designation) {
+          const role=label(person.designation,2.65,'#344c46');
+          role.position.y=1.93;
+          avatar.add(role);
+        }
         avatar.userData.target=new THREE.Vector3(districts[district].x+person.x,.11,person.z);
         avatar.position.copy(avatar.userData.target);
         scene.add(avatar);
@@ -307,7 +317,38 @@ onlineButton.onclick=()=>{
   name.setAttribute('aria-label','Display name');
   name.value=savedProfile.name || '';
   name.addEventListener('input',()=>name.setCustomValidity(''));
+  const designation=document.createElement('input');
+  designation.placeholder='Designation or role';
+  designation.setAttribute('aria-label','Designation or role');
+  designation.maxLength=32;
+  designation.required=true;
+  designation.value=savedProfile.designation || '';
+  designation.addEventListener('input',()=>designation.setCustomValidity(''));
   const choices=document.createElement('fieldset');
+  const preview=document.createElement('canvas');
+  preview.className='avatar-preview';
+  preview.width=480;
+  preview.height=240;
+  preview.setAttribute('aria-label','Full-body avatar preview');
+  const previewScene=new THREE.Scene();
+  previewScene.background=new THREE.Color(0xd9c8a7);
+  previewScene.add(new THREE.HemisphereLight(0xfff5e1,0x927859,2.7));
+  const previewCamera=new THREE.PerspectiveCamera(34,2,.1,20);
+  previewCamera.position.set(.95,1.4,3.3);
+  previewCamera.lookAt(0,.93,0);
+  let previewRenderer;
+  try { previewRenderer=new THREE.WebGLRenderer({canvas:preview,antialias:true}); } catch {}
+  function drawPreview(index) {
+    if(!previewRenderer) return;
+    const style=avatarStyles[index] || avatarStyles[0];
+    const model=figure(style.color,style.skin,index);
+    previewScene.add(model);
+    previewRenderer.render(previewScene,previewCamera);
+    model.removeFromParent();
+    model.traverse(part=>{if(part.isMesh && part.geometry!==cube) part.geometry.dispose();});
+  }
+  panel.addEventListener('close',()=>previewRenderer?.dispose(),{once:true});
+  drawPreview(savedProfile.avatar || 0);
   const legend=document.createElement('legend');
   legend.textContent='Avatar';
   choices.append(legend);
@@ -317,6 +358,7 @@ onlineButton.onclick=()=>{
     radio.type='radio';
     radio.name='avatar';
     radio.value=index;
+    radio.onchange=()=>drawPreview(index);
     radio.checked=(savedProfile.avatar || 0)===index;
     const swatch=document.createElement('span');
     swatch.className='swatch';
@@ -326,7 +368,7 @@ onlineButton.onclick=()=>{
   });
   const submit=document.createElement('button');
   submit.textContent='Join live walk';
-  form.append(name,choices,submit);
+  form.append(name,designation,preview,choices,submit);
   form.onsubmit=event=>{
     event.preventDefault();
     if(!name.value.trim()) {
@@ -334,14 +376,21 @@ onlineButton.onclick=()=>{
       name.reportValidity();
       return;
     }
-    savedProfile={name:name.value.trim(),avatar:Number(new FormData(form).get('avatar'))};
+    if(!designation.value.trim()) {
+      designation.setCustomValidity('Enter a designation or role.');
+      designation.reportValidity();
+      return;
+    }
+    savedProfile={designation:designation.value.trim(),name:name.value.trim(),avatar:Number(new FormData(form).get('avatar'))};
     try { localStorage.setItem('walkProfile',JSON.stringify(savedProfile)); } catch {}
     const style=avatarStyles[savedProfile.avatar];
-    for(const part of player.children) {
-      if(!part.isMesh) continue;
-      if(part.userData.avatarTint) part.material.color.setHex(style.color);
-      if(part.userData.avatarSkin) part.material.color.setHex(style.skin);
-    }
+    const next=figure(style.color,style.skin,savedProfile.avatar);
+    next.position.copy(player.position);
+    next.rotation.copy(player.rotation);
+    player.removeFromParent();
+    player.traverse(part=>{if(part.isMesh && part.geometry!==cube) part.geometry.dispose();});
+    player=next;
+    scene.add(player);
     live={id:crypto.randomUUID(),...savedProfile};
     onlineButton.textContent='Leave live walk';
     onlineButton.setAttribute('aria-pressed','true');
@@ -505,20 +554,6 @@ window.addEventListener('keydown',event=>{
 });
 window.addEventListener('keyup',event=>keys.delete(event.key.length===1 ? event.key.toLowerCase() : event.key));
 window.addEventListener('blur',()=>keys.clear());
-for(const button of $('pad').querySelectorAll('button')) {
-  const key = button.dataset.key;
-  button.addEventListener('pointerdown',event=>{
-    button.setPointerCapture(event.pointerId);
-    keys.add(key);
-  });
-  for(const type of ['pointerup','pointercancel','lostpointercapture']) {
-    button.addEventListener(type,()=>keys.delete(key));
-  }
-  button.addEventListener('click',event=>{
-    if(event.detail===0) walkRelative(...directions[key],.9);
-  });
-}
-
 function walkRelative(x,z,step) {
   const cos = Math.cos(yaw), sin = Math.sin(yaw);
   move(x*cos+z*sin,-x*sin+z*cos,step);

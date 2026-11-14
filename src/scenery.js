@@ -80,11 +80,11 @@ export function storefront(town,box,x,z,width,height,depth,side,shop,roof) {
   const sign=label(shop,Math.min(3.9,depth*.81),'#35362b',-side*Math.PI/2);
   sign.position.set(front-side*.055,2.98,z);
   town.add(sign);
-  if(height>3.65) {
+  if(height>4.45) {
     for(const dz of [-depth*.22,depth*.22]) {
-      box(town,0x3b453f,front,height-.78,z+dz,.12,.91,.75);
-      box(town,0xb4c4b0,front-side*.075,height-.78,z+dz,.10,.71,.55);
-      box(town,0x635649,front-side*.15,height-1.13,z+dz,.32,.10,.81);
+      box(town,0x3b453f,front,height-.60,z+dz,.12,.91,.75);
+      box(town,0xb4c4b0,front-side*.075,height-.60,z+dz,.10,.71,.55);
+      box(town,0x635649,front-side*.15,height-.95,z+dz,.32,.10,.81);
     }
   }
 }
@@ -94,9 +94,6 @@ export function streetDetails(town,index,{box,mesh,pine}) {
   const sapling = new THREE.IcosahedronGeometry(.65,1);
   for(const side of [-1,1]) {
     for(const z of [-20,-7,14,28]) {
-      box(town,0x384744,side*6.6,1.85,z,.105,3.7,.105);
-      box(town,0x384744,side*6.27,3.64,z,.72,.10,.11);
-      box(town,0xf6d99f,side*5.96,3.59,z,.27,.1,.23);
       if(z===-7 || z===14) {
         box(town,0x9e7450,side*6.6,.28,z+2,.68,.54,.68);
         mesh(town,sapling,0x567c45,side*6.6,.76,z+2);

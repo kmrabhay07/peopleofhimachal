@@ -1,0 +1,1 @@
+ALTER TABLE visitors ADD COLUMN designation TEXT NOT NULL DEFAULT '';
