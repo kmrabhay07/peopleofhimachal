@@ -77,8 +77,8 @@ export function storefront(town,box,x,z,width,height,depth,side,shop,roof) {
     awning.rotation.z=side*.16;
     box(town,i%2 ? 0xf3dea9 : roof,front-side*1.1,2.40,z+(i-4)*depth*.085,.08,.23,depth*.092);
   }
-  const sign=label(shop,Math.min(3.3,depth*.73),'#3f4135');
-  sign.position.set(front-side*.25,Math.min(height-.18,2.93),z);
+  const sign=label(shop,Math.min(3.9,depth*.81),'#35362b',-side*Math.PI/2);
+  sign.position.set(front-side*.055,2.98,z);
   town.add(sign);
   if(height>3.65) {
     for(const dz of [-depth*.22,depth*.22]) {
@@ -139,8 +139,11 @@ export function streetDetails(town,index,{box,mesh,pine}) {
       pine(town,side*13,-14,6.9,0x385b44);
     }
     box(town,0x534439,0,3.1,-24,9.3,.22,.28);
-    const gate=label('HPCA CRICKET STADIUM',7.5,'#6a352e');
-    gate.position.set(0,3.35,-23.9);
-    town.add(gate);
+    box(town,0x613428,0,3.34,-24,8.7,1.40,.24);
+    for(const side of [-1,1]) {
+      const gate=label('HPCA CRICKET STADIUM',8.65,'#6a352e',side===1?0:Math.PI);
+      gate.position.set(0,3.34,-24+side*.13);
+      town.add(gate);
+    }
   }
 }

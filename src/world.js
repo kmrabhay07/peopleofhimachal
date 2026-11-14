@@ -155,14 +155,17 @@ function figure(color,skin=0xbb825e) {
     return pivot;
   });
   const jacket = mesh(group,new THREE.CylinderGeometry(.30,.23,.62,10),color,0,1,0);
+  jacket.userData.avatarTint=true;
   jacket.scale.z=.77;
   for(const x of [-.315,.315]) {
     const arm=mesh(group,limbs,color,x,1.01,0);
+    arm.userData.avatarTint=true;
     arm.rotation.z=Math.sign(x)*.13;
-    mesh(group,new THREE.SphereGeometry(.097,8,5),skin,x*1.09,.68,0);
+    mesh(group,new THREE.SphereGeometry(.097,8,5),skin,x*1.09,.68,0).userData.avatarSkin=true;
   }
-  mesh(group,new THREE.CylinderGeometry(.11,.11,.20,10),skin,0,1.38,0);
+  mesh(group,new THREE.CylinderGeometry(.11,.11,.20,10),skin,0,1.38,0).userData.avatarSkin=true;
   const head=mesh(group,new THREE.SphereGeometry(.228,12,8),skin,0,1.61,0);
+  head.userData.avatarSkin=true;
   head.scale.y=1.17;
   const hair=mesh(group,new THREE.SphereGeometry(.233,12,8,0,Math.PI*2,0,Math.PI*.57),0x342c27,0,1.65,-.023);
   hair.scale.y=1.15;
@@ -195,11 +198,22 @@ people.forEach((person,index)=>{
 });
 
 const player = figure(0x4b776c,0xbd885f);
+for(const part of player.children) {
+  if(part.userData.avatarTint || part.userData.avatarSkin) part.material=part.material.clone();
+}
 scene.add(player);
 player.visible = false;
 const visitors = new Map();
 const onlineButton = $('online');
 const presenceStatus = $('presence');
+const avatarStyles = [
+  {name:'Pine',color:0x4b776c,skin:0xbd885f},
+  {name:'Marigold',color:0xc58a36,skin:0x9e653f},
+  {name:'Glacier',color:0x4b75af,skin:0xd8aa87},
+  {name:'Rhododendron',color:0xac5273,skin:0xae734f},
+];
+let savedProfile = {};
+try { savedProfile = JSON.parse(localStorage.getItem('walkProfile') || '{}') || {}; } catch {}
 let live = null;
 let presenceTimer;
 
@@ -222,7 +236,7 @@ async function syncPresence(session) {
   const district = activeDistrict;
   const body = JSON.stringify({
     id:session.id,district,x:player.position.x-districts[district].x,
-    z:player.position.z,yaw:player.rotation.y
+    z:player.position.z,yaw:player.rotation.y,name:session.name,avatar:session.avatar
   });
   try {
     const response = await fetch('/api/presence',{
@@ -239,8 +253,9 @@ async function syncPresence(session) {
     for(const person of next) {
       let avatar=visitors.get(person.id);
       if(!avatar) {
-        avatar=figure(0x92506b);
-        const badge=label('Live visitor',2.3,'#684054');
+        const style=avatarStyles[person.avatar] || avatarStyles[0];
+        avatar=figure(style.color,style.skin);
+        const badge=label(person.name || 'Guest',3.2,'#684054');
         badge.position.y=2.25;
         avatar.add(badge);
         avatar.userData.target=new THREE.Vector3(districts[district].x+person.x,.11,person.z);
@@ -283,11 +298,59 @@ onlineButton.onclick=()=>{
     leaveLiveWalk();
     return;
   }
-  live={id:crypto.randomUUID()};
-  onlineButton.textContent='Leave live walk';
-  onlineButton.setAttribute('aria-pressed','true');
-  presenceStatus.textContent='Connecting…';
-  syncPresence(live);
+  const body=openPanel('Live walk','Choose your name and avatar');
+  const form=document.createElement('form');
+  const name=document.createElement('input');
+  name.required=true;
+  name.maxLength=24;
+  name.placeholder='Display name';
+  name.setAttribute('aria-label','Display name');
+  name.value=savedProfile.name || '';
+  name.addEventListener('input',()=>name.setCustomValidity(''));
+  const choices=document.createElement('fieldset');
+  const legend=document.createElement('legend');
+  legend.textContent='Avatar';
+  choices.append(legend);
+  avatarStyles.forEach((style,index)=>{
+    const choice=document.createElement('label');
+    const radio=document.createElement('input');
+    radio.type='radio';
+    radio.name='avatar';
+    radio.value=index;
+    radio.checked=(savedProfile.avatar || 0)===index;
+    const swatch=document.createElement('span');
+    swatch.className='swatch';
+    swatch.style.backgroundColor='#'+style.color.toString(16).padStart(6,'0');
+    choice.append(radio,swatch,style.name);
+    choices.append(choice);
+  });
+  const submit=document.createElement('button');
+  submit.textContent='Join live walk';
+  form.append(name,choices,submit);
+  form.onsubmit=event=>{
+    event.preventDefault();
+    if(!name.value.trim()) {
+      name.setCustomValidity('Enter a display name.');
+      name.reportValidity();
+      return;
+    }
+    savedProfile={name:name.value.trim(),avatar:Number(new FormData(form).get('avatar'))};
+    try { localStorage.setItem('walkProfile',JSON.stringify(savedProfile)); } catch {}
+    const style=avatarStyles[savedProfile.avatar];
+    for(const part of player.children) {
+      if(!part.isMesh) continue;
+      if(part.userData.avatarTint) part.material.color.setHex(style.color);
+      if(part.userData.avatarSkin) part.material.color.setHex(style.skin);
+    }
+    live={id:crypto.randomUUID(),...savedProfile};
+    onlineButton.textContent='Leave live walk';
+    onlineButton.setAttribute('aria-pressed','true');
+    presenceStatus.textContent='Connecting…';
+    panel.close();
+    syncPresence(live);
+  };
+  body.append(form);
+  name.focus();
 };
 window.addEventListener('pagehide',leaveLiveWalk);
 const sun = new THREE.DirectionalLight(0xffebcd,2.45);
@@ -318,6 +381,7 @@ function openPanel(kicker,title) {
   $('panel-body').replaceChildren();
   if(!panel.open) panel.showModal();
   keys.clear();
+  stopJoystick();
   return $('panel-body');
 }
 
@@ -405,6 +469,7 @@ enter.onclick = ()=>{
   $('home').focus();
 };
 $('home').onclick = ()=>{
+  stopJoystick();
   leaveLiveWalk();
   walking = false;
   keys.clear();
@@ -459,6 +524,37 @@ function walkRelative(x,z,step) {
   move(x*cos+z*sin,-x*sin+z*cos,step);
 }
 
+const stick=$('joystick');
+const knob=stick.firstElementChild;
+const analog={x:0,z:0,id:null};
+function stopJoystick() {
+  analog.x=analog.z=0;
+  analog.id=null;
+  knob.style.transform='';
+}
+function steer(event) {
+  if(analog.id!==event.pointerId) return;
+  const rect=stick.getBoundingClientRect();
+  const radius=rect.width*.32;
+  const x=event.clientX-rect.left-rect.width/2;
+  const z=event.clientY-rect.top-rect.height/2;
+  const length=Math.max(radius,Math.hypot(x,z));
+  analog.x=x/length;
+  analog.z=z/length;
+  knob.style.transform=`translate(${analog.x*radius}px,${analog.z*radius}px)`;
+}
+stick.addEventListener('pointerdown',event=>{
+  if(analog.id!==null || event.button!==0) return;
+  analog.id=event.pointerId;
+  stick.setPointerCapture(event.pointerId);
+  steer(event);
+});
+stick.addEventListener('pointermove',steer);
+for(const type of ['pointerup','pointercancel','lostpointercapture']) {
+  stick.addEventListener(type,event=>{if(analog.id===event.pointerId) stopJoystick();});
+}
+window.addEventListener('blur',stopJoystick);
+
 function move(x,z,step) {
   const district = districts[activeDistrict];
   const canWalk = (nextX,nextZ)=> !colliders.some(([cx,cz,w,d])=>Math.abs(nextX-cx)<w && Math.abs(nextZ-cz)<d);
@@ -490,14 +586,14 @@ function frame(time) {
   const dt = Math.min((time-previous)/1000,.05);
   previous = time;
   if (walking) {
-    let x=0,z=0;
+    let x=analog.x,z=analog.z;
     for(const key of keys) {
       if(!directions[key]) continue;
       x += directions[key][0];
       z += directions[key][1];
     }
     const length = Math.hypot(x,z);
-    if(length && !panel.open) walkRelative(x/length,z/length,dt*(keys.has('Shift')?13:7.2));
+    if(length>.07 && !panel.open) walkRelative(x/Math.max(1,length),z/Math.max(1,length),dt*(keys.has('Shift')?13:7.2));
     if(length) renderer.shadowMap.needsUpdate = true;
     player.userData.legs.forEach((leg,index)=>leg.rotation.x = length ? Math.sin(time*.017+index*Math.PI)*.52 : 0);
     focus.lerp(player.position,1-Math.exp(-dt*7));

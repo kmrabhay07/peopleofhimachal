@@ -8,20 +8,30 @@ export const landmarks = [
   {name:'Bhagsunag Temple & Falls', district:4, x:0, z:-36, description:'The temple and waterfall above McLeod Ganj, represented here in a single walkable scene.', source:'https://hpkangra.nic.in/'},
 ];
 
-export function label(text, width = 4, background = '#202820') {
+export function label(text, width = 4, background = '#202820', rotation = null) {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 96;
+  canvas.width = 1024;
+  canvas.height = 192;
   const context = canvas.getContext('2d');
   context.fillStyle = background;
-  context.fillRect(0, 3, 512, 90);
+  context.fillRect(0, 0, 1024, 192);
+  context.strokeStyle = '#dfb879';
+  context.lineWidth = 7;
+  context.strokeRect(11,11,1002,170);
   context.fillStyle = '#fff4db';
-  context.font = 'bold 43px sans-serif';
+  context.font = 'bold 85px sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(text, 256, 49, 478);
+  context.fillText(text, 512, 98, 952);
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
+  if(rotation !== null) {
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(width,width*192/1024),
+      new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide,toneMapped:false}));
+    board.rotation.y = rotation;
+    return board;
+  }
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map, transparent:true, depthWrite:false}));
   sprite.scale.set(width,width*96/512,1);
   return sprite;
@@ -31,7 +41,7 @@ export function buildLandmark(town, index, {box, mesh, pine}) {
   const z = landmarks[index].z;
   const sign = label(landmarks[index].name, 9);
   sign.position.set(0, 3, z+10);
-  town.add(sign);
+  if(index!==3) town.add(sign);
   if (index === 3) {
     stadium(town, z, box, mesh);
     return;
@@ -129,8 +139,8 @@ function stadium(town, z, box, mesh) {
     roof(town,mesh,x,7.25,pavilionZ,3.45,3.25,2,0xab3b30);
     mesh(town,new THREE.SphereGeometry(.16,8,5),0xefb750,x,8.25,pavilionZ);
   }
-  const pavilionSign = label('H P C A',6);
-  pavilionSign.position.set(0,4.73,pavilionZ+3);
+  const pavilionSign = label('HPCA',5,'#643428',0);
+  pavilionSign.position.set(0,4.63,pavilionZ+2.98);
   town.add(pavilionSign);
   for(const x of [-30,30]) {
     for(const dz of [-22,22]) {

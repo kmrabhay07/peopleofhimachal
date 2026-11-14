@@ -20,13 +20,15 @@ export async function presence(request, env) {
     return new Response(null,{status:400});
   }
   const now = Math.floor(Date.now()/1000);
+  const name=typeof p.name==='string' ? p.name.trim().replace(/[\p{Cc}\p{Cf}]/gu,'').slice(0,24) : '';
+  const avatar=Number.isInteger(p.avatar) && p.avatar>=0 && p.avatar<4 ? p.avatar : 0;
   const db = env.DB;
   if (!db) return new Response(null,{status:503});
   const fresh = db.prepare('DELETE FROM visitors WHERE seen < ?').bind(now-12);
   const write = p.leave
     ? db.prepare('DELETE FROM visitors WHERE id = ?').bind(p.id)
-    : db.prepare('INSERT INTO visitors(id,district,x,z,yaw,seen) SELECT ?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM visitors)<256 OR EXISTS(SELECT 1 FROM visitors WHERE id=?) ON CONFLICT(id) DO UPDATE SET district=excluded.district,x=excluded.x,z=excluded.z,yaw=excluded.yaw,seen=excluded.seen WHERE visitors.seen<excluded.seen').bind(p.id,p.district,p.x,p.z,p.yaw,now,p.id);
-  const read = db.prepare('SELECT id,x,z,yaw FROM visitors WHERE district=? AND id<>? ORDER BY seen DESC LIMIT 40').bind(p.district,p.id);
+    : db.prepare('INSERT INTO visitors(id,district,x,z,yaw,seen,name,avatar) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM visitors)<256 OR EXISTS(SELECT 1 FROM visitors WHERE id=?) ON CONFLICT(id) DO UPDATE SET district=excluded.district,x=excluded.x,z=excluded.z,yaw=excluded.yaw,seen=excluded.seen,name=excluded.name,avatar=excluded.avatar WHERE visitors.seen<excluded.seen').bind(p.id,p.district,p.x,p.z,p.yaw,now,name || 'Guest',avatar,p.id);
+  const read = db.prepare('SELECT id,x,z,yaw,name,avatar FROM visitors WHERE district=? AND id<>? ORDER BY seen DESC LIMIT 40').bind(p.district,p.id);
   const [, , result] = await db.batch([fresh,write,read]);
   return Response.json(result.results,{headers:{'Cache-Control':'no-store'}});
 }
