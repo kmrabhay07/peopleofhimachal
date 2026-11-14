@@ -52,3 +52,6 @@ dialog h2{font-size:44px;line-height:1;margin:6px 0 15px}
 #world canvas{cursor:grab}
 #world canvas:active{cursor:grabbing}
 @media(max-width:600px){.toolbar{flex-wrap:wrap;gap:5px}.toolbar button,.toolbar select{padding:6px 8px}#interact{bottom:197px}}
+
+#online{pointer-events:auto;background:var(--gold);color:var(--ink);border:0;padding:4px 8px;font-weight:700;margin:4px 6px 4px 0}
+#presence{font-size:13px}

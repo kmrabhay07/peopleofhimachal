@@ -1,0 +1,2 @@
+CREATE TABLE visitors (id TEXT PRIMARY KEY, district INTEGER NOT NULL, x REAL NOT NULL, z REAL NOT NULL, yaw REAL NOT NULL, seen INTEGER NOT NULL);
+CREATE INDEX visitors_seen ON visitors(seen);

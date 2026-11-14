@@ -197,6 +197,99 @@ people.forEach((person,index)=>{
 const player = figure(0x4b776c,0xbd885f);
 scene.add(player);
 player.visible = false;
+const visitors = new Map();
+const onlineButton = $('online');
+const presenceStatus = $('presence');
+let live = null;
+let presenceTimer;
+
+function clearVisitors() {
+  for (const visitor of visitors.values()) {
+    visitor.traverse(object=>{
+      if(object.isSprite) {
+        object.material.map.dispose();
+        object.material.dispose();
+      }
+      if (object.isMesh && object.geometry!==cube) object.geometry.dispose();
+    });
+    visitor.removeFromParent();
+  }
+  visitors.clear();
+}
+
+async function syncPresence(session) {
+  if(live!==session || !walking) return;
+  const district = activeDistrict;
+  const body = JSON.stringify({
+    id:session.id,district,x:player.position.x-districts[district].x,
+    z:player.position.z,yaw:player.rotation.y
+  });
+  try {
+    const response = await fetch('/api/presence',{
+      method:'POST',headers:{'Content-Type':'application/json'},body,
+      signal:AbortSignal.timeout(4500)
+    });
+    if(!response.ok) throw new Error('Presence unavailable');
+    const next = await response.json();
+    if(live!==session || district!==activeDistrict) return;
+    const ids=new Set(next.map(person=>person.id));
+    for(const [id,avatar] of visitors) {
+      avatar.visible=ids.has(id);
+    }
+    for(const person of next) {
+      let avatar=visitors.get(person.id);
+      if(!avatar) {
+        avatar=figure(0x92506b);
+        const badge=label('Live visitor',2.3,'#684054');
+        badge.position.y=2.25;
+        avatar.add(badge);
+        avatar.userData.target=new THREE.Vector3(districts[district].x+person.x,.11,person.z);
+        avatar.position.copy(avatar.userData.target);
+        scene.add(avatar);
+        visitors.set(person.id,avatar);
+      }
+      avatar.visible=true;
+      avatar.userData.target.set(districts[district].x+person.x,.11,person.z);
+      avatar.rotation.y=person.yaw;
+    }
+    if(visitors.size>80) clearVisitors();
+    presenceStatus.textContent=next.length ? `${next.length} nearby` : 'Live · nobody nearby yet';
+  } catch {
+    if(live===session) {
+      clearVisitors();
+      presenceStatus.textContent='Live walk reconnecting…';
+    }
+  } finally {
+    if(live===session) presenceTimer=setTimeout(()=>syncPresence(session),1400);
+  }
+}
+
+function leaveLiveWalk() {
+  if(!live) return;
+  const id=live.id;
+  live=null;
+  clearTimeout(presenceTimer);
+  clearVisitors();
+  onlineButton.textContent='Join live walk';
+  onlineButton.setAttribute('aria-pressed','false');
+  presenceStatus.textContent='';
+  fetch('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
+    body:JSON.stringify({id,leave:true,district:activeDistrict,x:0,z:0,yaw:0})
+  }).catch(()=>{});
+}
+
+onlineButton.onclick=()=>{
+  if(live) {
+    leaveLiveWalk();
+    return;
+  }
+  live={id:crypto.randomUUID()};
+  onlineButton.textContent='Leave live walk';
+  onlineButton.setAttribute('aria-pressed','true');
+  presenceStatus.textContent='Connecting…';
+  syncPresence(live);
+};
+window.addEventListener('pagehide',leaveLiveWalk);
 const sun = new THREE.DirectionalLight(0xffebcd,2.45);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024,1024);
@@ -206,6 +299,7 @@ scene.add(sun,sun.target);
 scene.add(new THREE.HemisphereLight(0xc9e4ff,0x89906a,2.0));
 
 function teleport(index) {
+  clearVisitors();
   activeDistrict = index;
   showDistrict(index);
   picker.selectedIndex = index;
@@ -311,6 +405,7 @@ enter.onclick = ()=>{
   $('home').focus();
 };
 $('home').onclick = ()=>{
+  leaveLiveWalk();
   walking = false;
   keys.clear();
   player.visible = false;
@@ -426,6 +521,13 @@ function frame(time) {
     camera.lookAt(360,6,-67);
   }
   for(const character of characters) character.children.at(-2).rotation.y = time*.0014;
+  for(const avatar of visitors.values()) {
+    if(!avatar.visible) continue;
+    const target=avatar.userData.target;
+    const moving=avatar.position.distanceToSquared(target)>.012;
+    avatar.position.lerp(target,1-Math.exp(-dt*6));
+    avatar.userData.legs.forEach((leg,index)=>leg.rotation.x=moving ? Math.sin(time*.016+index*Math.PI)*.45 : 0);
+  }
   renderer.render(scene,camera);
 }
 

@@ -17,6 +17,8 @@ Use **Landmarks** to travel to HPCA Cricket Stadium, Tsuglagkhang, St John in th
 
 ## Content
 
+On the hosted site, select **Join live walk** to share your avatar's position with other visitors in the same neighborhood. Everyone joins as a guest. Select **Leave live walk** to stop sharing.
+
 The walk is a stylized interpretation of the neighborhoods. The six sample profiles are fictional. Edit the district and profile data in `src/people.js`. The site has no accounts or shared profile database.
 
 ## Build
