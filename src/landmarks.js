@@ -106,45 +106,106 @@ function stadium(town, z, box, mesh) {
     box(town,0xf3eee1,0,.17,z+end*5.5,4,.025,.1);
     for (const dx of [-.19,0,.19]) box(town,0xf3eee1,dx,.48,z+end*5.8,.065,.65,.065);
   }
-  for(let i=0;i<40;i++) {
-    const angle = i/40*Math.PI*2;
-    if ([8,9,10,11,12,28,29,30,31,32].includes(i)) continue;
-    for(let tier=0;tier<4;tier++) {
-      const radius = 26+tier*1.6;
-      const color = [0xdab252,0xdc803d,0xab5340,0xda9e45][tier];
-      const step = box(town,color,Math.cos(angle)*radius,.4+tier*.46,z+Math.sin(angle)*radius*.78,1.65,.74+tier*.16,4.25);
-      step.rotation.y = -Math.atan2(Math.sin(angle)/.78,Math.cos(angle));
-      for(const lateral of [-1.35,-.45,.45,1.35]) {
-        const seat=box(town,tier%2 ? 0xe3a345 : 0xe5bf59,
-          step.position.x+Math.sin(step.rotation.y)*lateral,
-          .91+tier*.54,step.position.z+Math.cos(step.rotation.y)*lateral,.25,.28,.59);
-        seat.rotation.y=step.rotation.y;
+  const tiers = 7;
+  const seatParts = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(),
+    new THREE.MeshStandardMaterial({roughness:.53}),
+    44*tiers*6*2
+  );
+  const pose = new THREE.Object3D();
+  const color = new THREE.Color();
+  let seats = 0;
+  function seatPart(x,y,z,angle,width,height,depth,tint) {
+    pose.position.set(x,y,z);
+    pose.rotation.y=angle;
+    pose.scale.set(width,height,depth);
+    pose.updateMatrix();
+    seatParts.setMatrixAt(seats,pose.matrix);
+    seatParts.setColorAt(seats++,color.setHex(tint));
+  }
+  for(let i=0;i<44;i++) {
+    const angle = i/44*Math.PI*2;
+    if ((i>=9 && i<=13) || (i>=29 && i<=37)) continue;
+    const rotation = -Math.atan2(Math.sin(angle)/.78,Math.cos(angle));
+    for(let tier=0;tier<tiers;tier++) {
+      const radius = 25.6+tier*.88;
+      const x = Math.cos(angle)*radius;
+      const rowZ = z+Math.sin(angle)*radius*.78;
+      const height = .36+tier*.36;
+      const step = box(town,tier%2?0xb5ac9d:0xc1b8a9,x,height/2,rowZ,.94,height,4.37);
+      step.rotation.y = rotation;
+      if(i%6===0) continue;
+      const tint=[0xd6b64f,0xd6893c,0x4a9383,0xe1b85c][Math.floor(i/5)%4];
+      for(let col=0;col<6;col++) {
+        const lateral=(col-2.5)*.61;
+        const sx=x+Math.sin(rotation)*lateral;
+        const sz=rowZ+Math.cos(rotation)*lateral;
+        seatPart(sx,height+.14,sz,rotation,.46,.11,.39,tint);
+        seatPart(sx+Math.cos(rotation)*.18,height+.30,sz-Math.sin(rotation)*.18,
+          rotation,.10,.31,.39,tint);
       }
     }
   }
-  const pavilionZ = z-24;
-  box(town,0xe6bd81,0,2.35,pavilionZ,20,4.7,5.7);
-  box(town,0x394c51,0,3.4,pavilionZ+2.88,17,1.64,.10);
-  for(let i=-7;i<=7;i++) box(town,0xd49d67,i*1.1,3.4,pavilionZ+2.95,.09,1.7,.09);
-  for(let i=-4;i<=4;i++) {
-    box(town,0x4c5350,i*1.9,1.30,pavilionZ+2.88,1.12,1.66,.10);
-    box(town,0x8c9ca1,i*1.9,1.6,pavilionZ+2.95,.80,.78,.10);
+  seatParts.count=seats;
+  seatParts.castShadow=true;
+  seatParts.receiveShadow=true;
+  town.add(seatParts);
+
+  const pavilionZ = z-25;
+  const facade = pavilionZ+3.7;
+  const plaster = 0xd8ad72;
+  const wood = 0x745045;
+  const red = 0xa32f2d;
+  box(town,0x827463,0,.30,pavilionZ,27,.60,8.5);
+  box(town,plaster,0,2.55,pavilionZ,25,4.5,7.4);
+  box(town,0x7c4c3c,0,2.59,facade+.035,25.3,.24,.20);
+  for(const side of [-1,1]) {
+    box(town,0xc68453,side*11.75,3.30,pavilionZ,2.9,5.6,8.1);
+    roof(town,mesh,side*11.75,6.1,pavilionZ,4.5,9.2,1.4,red);
+    for(let stair=0;stair<8;stair++) {
+      const stepHeight=.16*(stair+1);
+      box(town,0xaa9e8b,side*10.4,stepHeight/2,facade+2.43-stair*.29,2.3,stepHeight,.30);
+    }
   }
-  box(town,0xc99b65,0,2.38,pavilionZ+3.30,19,.22,.96);
-  box(town,0x624843,0,2.83,pavilionZ+3.73,19,.084,.08);
-  for(let i=-10;i<=10;i++) box(town,0x624843,i*.88,2.60,pavilionZ+3.73,.075,.47,.075);
-  roof(town,mesh,0,5.2,pavilionZ,22,7,2.15,0xa3352f);
-  for(const x of [-7,0,7]) {
-    box(town,0xe6ac66,x,5.9,pavilionZ,2.75,1.9,2.55);
-    roof(town,mesh,x,7.25,pavilionZ,3.45,3.25,2,0xab3b30);
-    mesh(town,new THREE.SphereGeometry(.16,8,5),0xefb750,x,8.25,pavilionZ);
+  for(let bay=-5;bay<=5;bay++) {
+    const x=bay*1.74;
+    box(town,wood,x,1.43,facade+.055,1.42,1.68,.13);
+    box(town,0x58635f,x,1.52,facade+.13,1.12,1.32,.045);
+    box(town,0x333f44,x,3.69,facade+.06,1.65,1.53,.15);
+    box(town,bay%3===0?0x789399:0x516e78,x,3.72,facade+.145,1.47,1.35,.036);
+    box(town,0x9fb2b4,x,4.05,facade+.168,1.44,.026,.018);
+    box(town,0x443f37,x+.25,3.72,facade+.168,.035,1.36,.026);
   }
-  const pavilionSign = label('HPCA',5,'#643428',0);
-  pavilionSign.position.set(0,4.63,pavilionZ+2.98);
+  box(town,0xb28e65,0,2.49,facade+.46,21.6,.16,1.12);
+  for(const y of [2.74,3.03]) box(town,wood,0,y,facade+.98,21.6,.055,.075);
+  for(let i=-14;i<=14;i++) box(town,wood,i*.76,2.81,facade+.98,.035,.55,.05);
+  box(town,0x685146,0,4.85,pavilionZ,26.3,.36,8.7);
+  roof(town,mesh,0,5.65,pavilionZ,26.8,9.2,2,red);
+
+  for(const x of [-7.6,0,7.6]) {
+    const topHeight=x===0?7.26:7;
+    box(town,0xa47a51,x,6.25,pavilionZ,3.4,1.1,3.4);
+    for(const side of [-1,1]) {
+      box(town,0x55483c,x+side*.98,6.45,pavilionZ+1.72,.40,.58,.08);
+    }
+    mesh(town,new THREE.CylinderGeometry(.68,2.13,.66,8),red,x,topHeight-.25,pavilionZ);
+    mesh(town,new THREE.CylinderGeometry(.22,.81,.56,8),0x8d2929,x,topHeight+.30,pavilionZ);
+    mesh(town,new THREE.CylinderGeometry(0,.22,.58,8),0xb98b43,x,topHeight+.84,pavilionZ);
+    mesh(town,new THREE.SphereGeometry(.11,10,7),0xe0ad54,x,topHeight+1.13,pavilionZ);
+  }
+  const pavilionSign = label('HPCA WELCOMES YOU',9,'#253746',0);
+  pavilionSign.position.set(0,4.78,facade+.17);
   town.add(pavilionSign);
+  const scoreboard = label('HPCA  •  DHARAMSHALA',7,'#263435',0);
+  scoreboard.position.set(24,4.15,z-19);
+  scoreboard.rotation.y=-.45;
+  town.add(scoreboard);
+  for(const dx of [-2.2,2.2]) box(town,0x4f5856,24+dx,1.92,z-19,.13,3.84,.14);
   for(const x of [-30,30]) {
     for(const dz of [-22,22]) {
-      box(town,0x778480,x,5.5,z+dz,.26,11,.26);
+      const support=mesh(town,new THREE.CylinderGeometry(.11,.24,11,12),0x8b9696,x,5.5,z+dz);
+      support.material.roughness=.6;
+      box(town,0x87857b,x,.23,z+dz,.75,.46,.75);
       box(town,0x46585b,x,11,z+dz,3,1.25,.4);
       for(let i=-2;i<=2;i++) box(town,0xffebba,x+i*.52,11,z+dz+.22,.36,.69,.07);
     }

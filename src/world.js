@@ -404,7 +404,7 @@ onlineButton.onclick=()=>{
 window.addEventListener('pagehide',leaveLiveWalk);
 const sun = new THREE.DirectionalLight(0xffebcd,2.45);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024,1024);
+sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-37,right:37,top:40,bottom:-40,near:1,far:160});
 sun.shadow.normalBias = .045;
 scene.add(sun,sun.target);
@@ -611,7 +611,7 @@ function showDistrict(index) {
   towns.forEach((town,i)=>{ town.visible = i===index; });
   characters.forEach((character,i)=>{ character.visible = people[i].district===index; });
   const x = districts[index].x;
-  sun.position.set(x-29,48,8);
+  sun.position.set(x-38,44,14);
   sun.target.position.set(x,0,-24);
   renderer.shadowMap.needsUpdate = true;
 }

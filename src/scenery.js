@@ -17,6 +17,7 @@ export function surfaceTexture(color, kind) {
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
   return texture;
 }
 
@@ -40,9 +41,9 @@ export function ridges(town, mesh) {
       return [x+Math.sin(row*1.7+x)*.7,h*fraction-6+detail*(1-fraction)*4,
         layer.z+(1-fraction)*24+Math.sin(x*.11+layer.phase)*6+detail*2.1];
     };
-    for(let x=-174;x<174;x+=3) {
+    for(let x=-174;x<174;x+=2) {
       for(let row=0;row<9;row++) {
-        const a=point(x,row), b=point(x+3,row), c=point(x,row+1), d=point(x+3,row+1);
+        const a=point(x,row), b=point(x+2,row), c=point(x,row+1), d=point(x+2,row+1);
         for(const triangle of [[a,b,c],[b,d,c]]) {
           const cover=(row+.5)/9;
           const snowline=.72 + .14*Math.sin(x*.19+layer.phase) + .05*Math.cos(x*.47);
