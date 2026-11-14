@@ -104,12 +104,25 @@ function stadium(town, z, box, mesh) {
       const color = [0xdab252,0xdc803d,0xab5340,0xda9e45][tier];
       const step = box(town,color,Math.cos(angle)*radius,.4+tier*.46,z+Math.sin(angle)*radius*.78,1.65,.74+tier*.16,4.25);
       step.rotation.y = -Math.atan2(Math.sin(angle)/.78,Math.cos(angle));
+      for(const lateral of [-1.35,-.45,.45,1.35]) {
+        const seat=box(town,tier%2 ? 0xe3a345 : 0xe5bf59,
+          step.position.x+Math.sin(step.rotation.y)*lateral,
+          .91+tier*.54,step.position.z+Math.cos(step.rotation.y)*lateral,.25,.28,.59);
+        seat.rotation.y=step.rotation.y;
+      }
     }
   }
   const pavilionZ = z-24;
   box(town,0xe6bd81,0,2.35,pavilionZ,20,4.7,5.7);
   box(town,0x394c51,0,3.4,pavilionZ+2.88,17,1.64,.10);
   for(let i=-7;i<=7;i++) box(town,0xd49d67,i*1.1,3.4,pavilionZ+2.95,.09,1.7,.09);
+  for(let i=-4;i<=4;i++) {
+    box(town,0x4c5350,i*1.9,1.30,pavilionZ+2.88,1.12,1.66,.10);
+    box(town,0x8c9ca1,i*1.9,1.6,pavilionZ+2.95,.80,.78,.10);
+  }
+  box(town,0xc99b65,0,2.38,pavilionZ+3.30,19,.22,.96);
+  box(town,0x624843,0,2.83,pavilionZ+3.73,19,.084,.08);
+  for(let i=-10;i<=10;i++) box(town,0x624843,i*.88,2.60,pavilionZ+3.73,.075,.47,.075);
   roof(town,mesh,0,5.2,pavilionZ,22,7,2.15,0xa3352f);
   for(const x of [-7,0,7]) {
     box(town,0xe6ac66,x,5.9,pavilionZ,2.75,1.9,2.55);

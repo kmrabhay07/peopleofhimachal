@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { districts, people } from './people.js';
 import { buildLandmark, label, landmarks } from './landmarks.js';
+import { ridges, storefront, streetDetails, surfaceTexture } from './scenery.js';
 import './style.css';
 
 const $ = id => document.getElementById(id);
@@ -40,9 +41,16 @@ function random() {
 }
 
 function mesh(parent, geometry, color, x, y, z) {
-  if (!materials.has(color)) materials.set(color, new THREE.MeshStandardMaterial({color, flatShading:true}));
+  if (!materials.has(color)) {
+    const kind = {0x555b61:'asphalt',0x7e8b59:'grass',0x3b854e:'grass',0x468f54:'grass',0xc8b9a0:'stone'}[color];
+    materials.set(color, new THREE.MeshStandardMaterial({
+      color:kind ? 0xffffff : color, map:kind ? surfaceTexture(color,kind) : null, roughness:.88, flatShading:true
+    }));
+  }
   const object = new THREE.Mesh(geometry, materials.get(color));
   object.position.set(x,y,z);
+  object.castShadow = y>.35;
+  object.receiveShadow = true;
   parent.add(object);
   return object;
 }
@@ -51,15 +59,6 @@ function box(parent, color, x, y, z, width, height, depth) {
   const object = mesh(parent, cube, color, x,y,z);
   object.scale.set(width,height,depth);
   return object;
-}
-
-function mountain(parent, x, z, width, height, color, snow) {
-  const peak = mesh(parent, new THREE.ConeGeometry(width,height,5),color,x,height/2-8,z);
-  peak.rotation.y = random()*Math.PI;
-  if (snow) {
-    const cap = mesh(parent,new THREE.ConeGeometry(width*.36,height*.36,5),0xe9ddc9,x,height*.82-7.93,z);
-    cap.rotation.y = peak.rotation.y;
-  }
 }
 
 function pine(parent,x,z,height,color) {
@@ -116,6 +115,7 @@ function districtTown(district,index) {
 
   const roofs = [0x664741,0x536b60,0x8d492f,0x4c5558];
   const walls = [district.color,0xd0ac79,0xe3c68d,0x8e9c82];
+  const shops = ['CHAI & MOMOS','KANGRA TEA','BOOK SHOP','WOOL & WEAVE','HILL BAKERY','TIBETAN CRAFTS','CRICKET SHOP','CORNER CAFE'];
   for(const side of [-1,1]) {
     for(let row=0;row<8;row++) {
       if(row===4 || (index===3 && row<3) || (index!==3 && row===0)) continue;
@@ -123,7 +123,9 @@ function districtTown(district,index) {
       const z = -37+row*8.5;
       const width = 4.7 + random()*2.3;
       const depth = 4.1 + random()*2;
-      building(town,x,z,width,depth,2.6+random()*3,walls[row%4],roofs[(row+1)%4]);
+      const height=3.35+random()*2.3;
+      building(town,x,z,width,depth,height,walls[row%4],roofs[(row+1)%4]);
+      storefront(town,box,x,z,width,height,depth,side,shops[(row+(side===1?3:0))%shops.length],roofs[row%4]);
       colliders.push([district.x+x,z,width/2+.6,depth/2+.6]);
       building(town,side*(19+random()*3),z+1,width,depth,3.8+random()*3,walls[(row+2)%4],roofs[row%4],1.4);
     }
@@ -133,25 +135,38 @@ function districtTown(district,index) {
     const z = -55+random()*105;
     if ((index!==3 || z>-17 || Math.abs(x)>37) && (Math.abs(x)>25 || z>28)) pine(town,x,z,1.8+random()*4,district.trees);
   }
-  for(let i=0;i<15;i++) {
-    mountain(town,-100+i*15+random()*9,-96-random()*38,16+random()*26,30+random()*37,[0x727a72,0x737c79,0xa19881][i%3],true);
-  }
-  for(let i=0;i<11;i++) {
-    mountain(town,-62+i*12,(index===3?-104:-65)-random()*13,17+random()*13,12+random()*20,[0x657052,0x797e5a,0x8f8762][i%3],false);
-  }
+  ridges(town,mesh);
   lanterns(town);
   buildLandmark(town,index,{box,mesh,pine});
+  streetDetails(town,index,{box,mesh,pine});
+  for(const [x,z] of [[-4,3],[4,23],[-4,31]]) colliders.push([district.x+x,z,1,1.8]);
   if(index!==3) colliders.push([district.x+(index===4?-7:0),-37,index===1?4.3:6.4,index===1?7:4.6]);
 }
 
 function figure(color,skin=0xbb825e) {
   const group = new THREE.Group();
-  const legs = [-.17,.17].map(x=>box(group,0x333c38,x,.36,0,.21,.63,.28));
-  box(group,color,0,1,0,.65,.70,.39);
-  for(const x of [-.38,.38]) box(group,color,x,.96,0,.15,.64,.24);
-  box(group,skin,0,1.61,0,.43,.43,.39);
-  box(group,0x3d2e28,0,1.84,-.01,.47,.15,.43);
-  for(const x of [-.09,.09]) box(group,0x312620,x,1.64,.204,.045,.045,.026);
+  const limbs = new THREE.CapsuleGeometry(.112,.41,3,8);
+  const legs = [-.145,.145].map(x=>{
+    const pivot = new THREE.Group();
+    pivot.position.set(x,.68,0);
+    group.add(pivot);
+    mesh(pivot,limbs,0x39484c,0,-.28,0);
+    box(pivot,0x2a3031,0,-.64,.075,.22,.15,.38);
+    return pivot;
+  });
+  const jacket = mesh(group,new THREE.CylinderGeometry(.30,.23,.62,10),color,0,1,0);
+  jacket.scale.z=.77;
+  for(const x of [-.315,.315]) {
+    const arm=mesh(group,limbs,color,x,1.01,0);
+    arm.rotation.z=Math.sign(x)*.13;
+    mesh(group,new THREE.SphereGeometry(.097,8,5),skin,x*1.09,.68,0);
+  }
+  mesh(group,new THREE.CylinderGeometry(.11,.11,.20,10),skin,0,1.38,0);
+  const head=mesh(group,new THREE.SphereGeometry(.228,12,8),skin,0,1.61,0);
+  head.scale.y=1.17;
+  const hair=mesh(group,new THREE.SphereGeometry(.233,12,8,0,Math.PI*2,0,Math.PI*.57),0x342c27,0,1.65,-.023);
+  hair.scale.y=1.15;
+  for(const x of [-.082,.082]) box(group,0x342c27,x,1.65,.209,.035,.038,.025);
   group.userData.legs = legs;
   return group;
 }
@@ -182,12 +197,13 @@ people.forEach((person,index)=>{
 const player = figure(0x4b776c,0xbd885f);
 scene.add(player);
 player.visible = false;
-for(const [color,intensity] of [[0xfff0d0,2.1],[0xd7e6f5,.8]]) {
-  const light = new THREE.DirectionalLight(color,intensity);
-  light.position.set(intensity===2.1 ? -35 : 25,45,-18);
-  scene.add(light);
-}
-scene.add(new THREE.HemisphereLight(0xffe1ab,0x5f6348,2.0));
+const sun = new THREE.DirectionalLight(0xffebcd,2.45);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+Object.assign(sun.shadow.camera,{left:-37,right:37,top:40,bottom:-40,near:1,far:160});
+sun.shadow.normalBias = .045;
+scene.add(sun,sun.target);
+scene.add(new THREE.HemisphereLight(0xc9e4ff,0x89906a,2.0));
 
 function teleport(index) {
   activeDistrict = index;
@@ -368,6 +384,10 @@ function resize() {
 function showDistrict(index) {
   towns.forEach((town,i)=>{ town.visible = i===index; });
   characters.forEach((character,i)=>{ character.visible = people[i].district===index; });
+  const x = districts[index].x;
+  sun.position.set(x-29,48,8);
+  sun.target.position.set(x,0,-24);
+  renderer.shadowMap.needsUpdate = true;
 }
 
 let previous = 0;
@@ -383,6 +403,7 @@ function frame(time) {
     }
     const length = Math.hypot(x,z);
     if(length && !panel.open) walkRelative(x/length,z/length,dt*(keys.has('Shift')?13:7.2));
+    if(length) renderer.shadowMap.needsUpdate = true;
     player.userData.legs.forEach((leg,index)=>leg.rotation.x = length ? Math.sin(time*.017+index*Math.PI)*.52 : 0);
     focus.lerp(player.position,1-Math.exp(-dt*7));
     destination.set(focus.x+Math.sin(yaw)*5.8,focus.y+2.9+pitch*3,focus.z+Math.cos(yaw)*5.8);
@@ -410,6 +431,9 @@ function frame(time) {
 
 try {
   renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = .92;
@@ -455,4 +479,3 @@ try {
   $('load-error').hidden = false;
   console.error(error);
 }
-
