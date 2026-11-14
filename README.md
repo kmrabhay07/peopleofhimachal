@@ -11,7 +11,9 @@ npm ci
 npm run dev
 ```
 
-Open the address printed by Vite. Enter Dharamshala, then use WASD, arrow keys, or the on-screen direction buttons. Select a character to open their profile or use **Find someone** to search by name, craft, or neighborhood. The neighborhood menu jumps between McLeod Ganj, Dharamkot, and Sidhpur.
+Open the address printed by Vite and select **Enter Dharamshala** to start outside HPCA Cricket Stadium. Walk straight ahead to reach the pitch. Use WASD, the arrow keys, or the on-screen direction buttons to move. Hold Shift to sprint and drag the scene to look around. Press E to interact with a nearby character or landmark, or F to search profiles.
+
+Use **Landmarks** to travel to HPCA Cricket Stadium, Tsuglagkhang, St John in the Wilderness, Norbulingka Institute, and Bhagsunag Temple & Falls.
 
 ## Content
 

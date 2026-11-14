@@ -23,12 +23,13 @@
 <section id="hud" aria-label="Walk controls" hidden>
   <header>
     <button id="home" class="label">← PEOPLE OF HIMACHAL</button>
-    <div class="toolbar"><label class="sr" for="district">Neighborhood</label><select id="district"></select><button id="find">Find someone</button></div>
+    <div class="toolbar"><label class="sr" for="district">Neighborhood</label><select id="district"></select><button id="places">Landmarks</button><button id="find">Find someone</button></div>
   </header>
   <div class="walk-info">
     <div id="arrival" role="status"></div>
-    <small>WASD / arrow keys to walk · Select a character to meet them</small>
+    <small>WASD move · Shift run · Drag to look · E interact · F search</small>
   </div>
+  <button id="interact" hidden></button>
   <div id="pad" aria-label="Direction controls">
     <button data-key="ArrowUp" aria-label="Walk up">↑</button>
     <button data-key="ArrowLeft" aria-label="Walk left">←</button>

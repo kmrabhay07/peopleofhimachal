@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { districts, people } from './people.js';
+import { buildLandmark, label, landmarks } from './landmarks.js';
 import './style.css';
 
 const $ = id => document.getElementById(id);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf2cb8f);
-scene.fog = new THREE.FogExp2(0xe9bd87, 0.003);
+scene.background = new THREE.Color(0x9ccce2);
+scene.fog = new THREE.FogExp2(0xb5d4df, 0.003);
 const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 480);
 const world = $('world');
 const enter = $('enter');
@@ -17,6 +18,7 @@ const directions = {
   w:[0,-1], s:[0,1], a:[-1,0], d:[1,0],
 };
 const characters = [];
+const towns = [];
 const colliders = [];
 const materials = new Map();
 const cube = new THREE.BoxGeometry();
@@ -24,7 +26,9 @@ const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const focus = new THREE.Vector3();
 const destination = new THREE.Vector3();
-const offset = new THREE.Vector3(18,22,25);
+const look = new THREE.Vector3();
+let yaw = 0, pitch = .16, drag = null, suppressClick = false, nearby = null;
+const interact = $('interact');
 let walking = false;
 let activeDistrict = 0;
 let renderer;
@@ -91,13 +95,20 @@ function lanterns(parent) {
   }
 }
 
-function districtTown(district) {
+function districtTown(district,index) {
   const town = new THREE.Group();
   town.position.x = district.x;
   scene.add(town);
-  box(town,0x888758,0,-.48,1,116,.85,132);
-  box(town,0xc3a17d,0,.01,1,12,.17,77);
-  box(town,0xc7aa85,0,.025,-2,33,.16,11);
+  towns.push(town);
+  box(town,0x7e8b59,0,-.53,-10,116,1,150);
+  box(town,0x555b61,0,.01,1,10,.17,78);
+  for(const side of [-1,1]) {
+    box(town,0xc8b9a0,5.95*side,.03,1,1.9,.18,78);
+    for(let i=0;i<38;i++) box(town,i%2 ? 0xe5b54a : 0x353a3d,5.04*side,.11,38-i*2,.25,.13,1.94);
+  }
+  for(let i=0;i<12;i++) box(town,0xe6e1ca,0,.105,34-i*6, .12,.02,2.7);
+  for(const z of [-6,13]) for(let i=-4;i<=4;i++) box(town,0xece6d6,i*.95,.12,z,.48,.021,2.05);
+  box(town,0x555b61,0,.015,-2,33,.17,9);
   for(let i=0;i<22;i++) {
     box(town,0xb39372,-5.3,.105,-32+i*3.25,.33,.04,2.6);
     box(town,0xb39372,5.3,.105,-32+i*3.25,.33,.04,2.6);
@@ -107,7 +118,7 @@ function districtTown(district) {
   const walls = [district.color,0xd0ac79,0xe3c68d,0x8e9c82];
   for(const side of [-1,1]) {
     for(let row=0;row<8;row++) {
-      if(row===4) continue;
+      if(row===4 || (index===3 && row<3) || (index!==3 && row===0)) continue;
       const x = side*(10+random()*1.7);
       const z = -37+row*8.5;
       const width = 4.7 + random()*2.3;
@@ -120,7 +131,7 @@ function districtTown(district) {
   for (let i=0;i<110;i++) {
     const x = (random()<.5?-1:1)*(15+random()*45);
     const z = -55+random()*105;
-    if (Math.abs(x)>25 || z<-37 || z>28) pine(town,x,z,1.8+random()*4,district.trees);
+    if ((index!==3 || z>-17 || Math.abs(x)>37) && (Math.abs(x)>25 || z>28)) pine(town,x,z,1.8+random()*4,district.trees);
   }
   for(let i=0;i<15;i++) {
     mountain(town,-100+i*15+random()*9,-96-random()*38,16+random()*26,30+random()*37,[0x727a72,0x737c79,0xa19881][i%3],true);
@@ -129,6 +140,8 @@ function districtTown(district) {
     mountain(town,-62+i*12,-65-random()*13,17+random()*13,12+random()*20,[0x657052,0x797e5a,0x8f8762][i%3],false);
   }
   lanterns(town);
+  buildLandmark(town,index,{box,mesh,pine});
+  if(index!==3) colliders.push([district.x+(index===4?-7:0),-37,index===1?4.3:6.4,index===1?7:4.6]);
 }
 
 function figure(color,skin=0xbb825e) {
@@ -149,8 +162,8 @@ function marker() {
   return sign;
 }
 
-for (const district of districts) {
-  districtTown(district);
+for (const [index,district] of districts.entries()) {
+  districtTown(district,index);
   picker.add(new Option(district.name));
 }
 
@@ -158,12 +171,15 @@ people.forEach((person,index)=>{
   const character = figure(person.color);
   character.position.set(districts[person.district].x+person.x,.09,person.z);
   character.add(marker());
+  const nameplate = label(person.name,2.65);
+  nameplate.position.y = 2.9;
+  character.add(nameplate);
   character.userData.profile = index;
   scene.add(character);
   characters.push(character);
 });
 
-const player = figure(0x365d58);
+const player = figure(0x4b776c,0xbd885f);
 scene.add(player);
 player.visible = false;
 for(const [color,intensity] of [[0xfff0d0,2.1],[0xd7e6f5,.8]]) {
@@ -175,12 +191,15 @@ scene.add(new THREE.HemisphereLight(0xffe1ab,0x5f6348,2.0));
 
 function teleport(index) {
   activeDistrict = index;
+  showDistrict(index);
   picker.selectedIndex = index;
   const district = districts[index];
-  player.position.set(district.x,.11,5);
+  player.position.set(district.x,.11,index===3?-9:8);
+  yaw=0; pitch=.16;
   player.rotation.y = Math.PI;
   focus.copy(player.position);
   $('arrival').textContent = district.name;
+  interact.hidden = true;
 }
 
 function openPanel(kicker,title) {
@@ -199,6 +218,35 @@ function profile(person) {
   const story = document.createElement('p');
   story.textContent = person.story;
   body.append(role,story);
+}
+
+function showLandmark(place) {
+  const body = openPanel('Dharamshala landmarks',place.name);
+  const copy = document.createElement('p');
+  copy.textContent = place.description;
+  const source = document.createElement('a');
+  source.href = place.source;
+  source.textContent = 'About the real landmark ↗';
+  source.target = '_blank';
+  source.rel = 'noopener noreferrer';
+  body.append(copy,source);
+}
+
+function places() {
+  const body = openPanel('Explore Dharamshala','Landmarks');
+  const list = document.createElement('ul');
+  for(const place of [landmarks[3],landmarks[0],landmarks[4],landmarks[1],landmarks[2]]) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.textContent = place.name;
+    button.onclick = ()=>{
+      teleport(place.district);
+      panel.close();
+    };
+    item.append(button);
+    list.append(item);
+  }
+  body.append(list);
 }
 
 function search() {
@@ -243,7 +291,7 @@ enter.onclick = ()=>{
   $('intro').hidden = true;
   $('hud').hidden = false;
   player.visible = true;
-  teleport(0);
+  teleport(3);
   $('home').focus();
 };
 $('home').onclick = ()=>{
@@ -251,15 +299,31 @@ $('home').onclick = ()=>{
   keys.clear();
   player.visible = false;
   $('intro').hidden = false;
+  showDistrict(3);
   $('hud').hidden = true;
   enter.focus();
 };
 $('find').onclick = search;
+$('places').onclick = places;
+interact.onclick = ()=>{
+  if(!nearby) return;
+  if(nearby.story) profile(nearby);
+  else showLandmark(nearby);
+};
 picker.onchange = ()=>teleport(picker.selectedIndex);
 
 window.addEventListener('keydown',event=>{
   const key = event.key.length===1 ? event.key.toLowerCase() : event.key;
-  if(!walking || panel.open || event.target===picker || !Object.hasOwn(directions,key)) return;
+  if(!walking || panel.open || event.target===picker || event.ctrlKey || event.metaKey || event.altKey) return;
+  if(key==='e' && !event.repeat && !interact.hidden) {
+    interact.click();
+    return;
+  }
+  if(key==='f' && !event.repeat) {
+    search();
+    return;
+  }
+  if(key!=='Shift' && !Object.hasOwn(directions,key)) return;
   event.preventDefault();
   keys.add(key);
 });
@@ -275,15 +339,20 @@ for(const button of $('pad').querySelectorAll('button')) {
     button.addEventListener(type,()=>keys.delete(key));
   }
   button.addEventListener('click',event=>{
-    if(event.detail===0) move(...directions[key],.9);
+    if(event.detail===0) walkRelative(...directions[key],.9);
   });
+}
+
+function walkRelative(x,z,step) {
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  move(x*cos+z*sin,-x*sin+z*cos,step);
 }
 
 function move(x,z,step) {
   const district = districts[activeDistrict];
   const canWalk = (nextX,nextZ)=> !colliders.some(([cx,cz,w,d])=>Math.abs(nextX-cx)<w && Math.abs(nextZ-cz)<d);
-  const nextX = THREE.MathUtils.clamp(player.position.x+x*step,district.x-14,district.x+14);
-  const nextZ = THREE.MathUtils.clamp(player.position.z+z*step,-37,34);
+  const nextX = THREE.MathUtils.clamp(player.position.x+x*step,district.x-(activeDistrict===3?23:14),district.x+(activeDistrict===3?23:14));
+  const nextZ = THREE.MathUtils.clamp(player.position.z+z*step,activeDistrict===3?-62:-44,34);
   if(canWalk(nextX,player.position.z)) player.position.x = nextX;
   if(canWalk(player.position.x,nextZ)) player.position.z = nextZ;
   player.rotation.y = Math.atan2(x,z);
@@ -296,6 +365,11 @@ function resize() {
   renderer.setSize(world.clientWidth,world.clientHeight);
 }
 
+function showDistrict(index) {
+  towns.forEach((town,i)=>{ town.visible = i===index; });
+  characters.forEach((character,i)=>{ character.visible = people[i].district===index; });
+}
+
 let previous = 0;
 function frame(time) {
   const dt = Math.min((time-previous)/1000,.05);
@@ -303,22 +377,34 @@ function frame(time) {
   if (walking) {
     let x=0,z=0;
     for(const key of keys) {
+      if(!directions[key]) continue;
       x += directions[key][0];
       z += directions[key][1];
     }
     const length = Math.hypot(x,z);
-    if(length) move(x/length,z/length,dt*8);
+    if(length && !panel.open) walkRelative(x/length,z/length,dt*(keys.has('Shift')?13:7.2));
     player.userData.legs.forEach((leg,index)=>leg.rotation.x = length ? Math.sin(time*.017+index*Math.PI)*.52 : 0);
     focus.lerp(player.position,1-Math.exp(-dt*7));
-    destination.copy(focus).add(offset);
+    destination.set(focus.x+Math.sin(yaw)*5.8,focus.y+2.9+pitch*3,focus.z+Math.cos(yaw)*5.8);
     camera.position.copy(destination);
-    camera.lookAt(focus);
+    look.set(focus.x-Math.sin(yaw)*9,focus.y+2.1-pitch*7,focus.z-Math.cos(yaw)*9);
+    camera.lookAt(look);
+    const position = player.position;
+    const district = districts[activeDistrict];
+    nearby = people.find(person=>person.district===activeDistrict && Math.hypot(position.x-district.x-person.x,position.z-person.z)<3.2);
+    const place = landmarks[activeDistrict];
+    if(!nearby && Math.hypot(position.x-district.x-place.x,position.z-place.z-8)<5.5) nearby = place;
+    interact.hidden = !nearby || panel.open;
+    if(nearby) {
+      const caption = (nearby.story ? 'Meet ' : 'Explore ') + nearby.name + ' · E';
+      if (interact.textContent!==caption) interact.textContent = caption;
+    }
   } else {
     const angle = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Math.sin(time*.00011)*.1;
-    camera.position.set(25+angle*30,22,34);
-    camera.lookAt(0,4,-14);
+    camera.position.set(381+angle*30,26,-10);
+    camera.lookAt(360,6,-67);
   }
-  for(const character of characters) character.children.at(-1).rotation.y = time*.0014;
+  for(const character of characters) character.children.at(-2).rotation.y = time*.0014;
   renderer.render(scene,camera);
 }
 
@@ -328,8 +414,28 @@ try {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = .92;
   world.append(renderer.domElement);
-  renderer.domElement.addEventListener('click',event=>{
-    if(!walking || panel.open) return;
+  const canvas = renderer.domElement;
+  canvas.addEventListener('pointerdown',event=>{
+    if(!walking || panel.open || event.button!==0) return;
+    drag = {id:event.pointerId, x:event.clientX, y:event.clientY};
+    suppressClick = false;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener('pointermove',event=>{
+    if(drag?.id!==event.pointerId) return;
+    const dx = event.clientX-drag.x, dy = event.clientY-drag.y;
+    if(!suppressClick && Math.hypot(dx,dy)<4) return;
+    suppressClick = true;
+    yaw -= dx*.007;
+    pitch = THREE.MathUtils.clamp(pitch-dy*.006,-.42,.65);
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+  });
+  for(const event of ['pointerup','pointercancel','lostpointercapture']) {
+    canvas.addEventListener(event,()=>{ drag = null; });
+  }
+  canvas.addEventListener('click',event=>{
+    if(!walking || panel.open || suppressClick) return;
     const bounds = renderer.domElement.getBoundingClientRect();
     pointer.set((event.clientX-bounds.left)/bounds.width*2-1,1-(event.clientY-bounds.top)/bounds.height*2);
     ray.setFromCamera(pointer,camera);
@@ -340,6 +446,7 @@ try {
     while(target.userData.profile===undefined) target = target.parent;
     profile(people[target.userData.profile]);
   });
+  showDistrict(3);
   resize();
   window.addEventListener('resize',resize);
   renderer.setAnimationLoop(frame);
