@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="A virtual walk through Dharamshala, Himachal Pradesh.">
+<title>People of Himachal · Dharamshala</title>
+</head>
+<body>
+<div id="world" aria-label="Illustrated 3D town"></div>
+<main id="intro">
+  <header><span class="label">PEOPLE OF HIMACHAL</span><span class="location">◈ KANGRA VALLEY · HP</span></header>
+  <section class="hero">
+    <p class="kicker">PEOPLE OF</p>
+    <h1>DHARAMSHALA</h1>
+    <p class="tagline">Walk the hills. Meet the people who shape them.</p>
+    <p class="sub">A virtual stroll beneath the Dhauladhar.</p>
+    <button id="enter" class="primary" disabled>Enter Dharamshala <span>↗</span></button>
+    <p id="load-error" role="status" hidden>This walk needs a browser with WebGL enabled.</p>
+  </section>
+  <div class="edition"><span>01 / HIMACHAL</span><span>DHARAMSHALA EDITION</span></div>
+</main>
+<section id="hud" aria-label="Walk controls" hidden>
+  <header>
+    <button id="home" class="label">← PEOPLE OF HIMACHAL</button>
+    <div class="toolbar"><label class="sr" for="district">Neighborhood</label><select id="district"></select><button id="find">Find someone</button></div>
+  </header>
+  <div class="walk-info">
+    <div id="arrival" role="status"></div>
+    <small>WASD / arrow keys to walk · Select a character to meet them</small>
+  </div>
+  <div id="pad" aria-label="Direction controls">
+    <button data-key="ArrowUp" aria-label="Walk up">↑</button>
+    <button data-key="ArrowLeft" aria-label="Walk left">←</button>
+    <button data-key="ArrowDown" aria-label="Walk down">↓</button>
+    <button data-key="ArrowRight" aria-label="Walk right">→</button>
+  </div>
+</section>
+<dialog id="panel" aria-labelledby="panel-title">
+  <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+  <p class="kicker" id="panel-kicker"></p>
+  <h2 id="panel-title"></h2>
+  <div id="panel-body"></div>
+</dialog>
+<script type="module" src="/src/world.js"></script>
+</body>
+</html>
