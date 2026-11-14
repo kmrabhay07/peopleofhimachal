@@ -101,15 +101,15 @@ function districtTown(district,index) {
   scene.add(town);
   towns.push(town);
   box(town,0x7e8b59,0,-.53,-10,116,1,150);
-  box(town,0x555b61,0,.01,1,10,.17,78);
+  box(town,0x555b61,0,.01,index===3?6.5:1,10,.17,index===3?67:78);
   for(const side of [-1,1]) {
-    box(town,0xc8b9a0,5.95*side,.03,1,1.9,.18,78);
-    for(let i=0;i<38;i++) box(town,i%2 ? 0xe5b54a : 0x353a3d,5.04*side,.11,38-i*2,.25,.13,1.94);
+    box(town,0xc8b9a0,5.95*side,.03,index===3?6.5:1,1.9,.18,index===3?67:78);
+    for(let i=0;i<(index===3?33:38);i++) box(town,i%2 ? 0xe5b54a : 0x353a3d,5.04*side,.11,38-i*2,.25,.13,1.94);
   }
-  for(let i=0;i<12;i++) box(town,0xe6e1ca,0,.105,34-i*6, .12,.02,2.7);
+  for(let i=0;i<(index===3?11:12);i++) box(town,0xe6e1ca,0,.105,34-i*6, .12,.02,2.7);
   for(const z of [-6,13]) for(let i=-4;i<=4;i++) box(town,0xece6d6,i*.95,.12,z,.48,.021,2.05);
   box(town,0x555b61,0,.015,-2,33,.17,9);
-  for(let i=0;i<22;i++) {
+  for(let i=index===3?3:0;i<22;i++) {
     box(town,0xb39372,-5.3,.105,-32+i*3.25,.33,.04,2.6);
     box(town,0xb39372,5.3,.105,-32+i*3.25,.33,.04,2.6);
   }
@@ -137,7 +137,7 @@ function districtTown(district,index) {
     mountain(town,-100+i*15+random()*9,-96-random()*38,16+random()*26,30+random()*37,[0x727a72,0x737c79,0xa19881][i%3],true);
   }
   for(let i=0;i<11;i++) {
-    mountain(town,-62+i*12,-65-random()*13,17+random()*13,12+random()*20,[0x657052,0x797e5a,0x8f8762][i%3],false);
+    mountain(town,-62+i*12,(index===3?-104:-65)-random()*13,17+random()*13,12+random()*20,[0x657052,0x797e5a,0x8f8762][i%3],false);
   }
   lanterns(town);
   buildLandmark(town,index,{box,mesh,pine});
@@ -455,3 +455,4 @@ try {
   $('load-error').hidden = false;
   console.error(error);
 }
+
