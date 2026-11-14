@@ -273,6 +273,7 @@ async function syncPresence(session) {
         scene.add(avatar);
         visitors.set(person.id,avatar);
       }
+      avatar.userData.visitor=person;
       avatar.visible=true;
       avatar.userData.target.set(districts[district].x+person.x,.11,person.z);
       avatar.rotation.y=person.yaw;
@@ -295,7 +296,7 @@ function leaveLiveWalk() {
   live=null;
   clearTimeout(presenceTimer);
   clearVisitors();
-  onlineButton.textContent='Join live walk';
+  onlineButton.textContent='Become visible';
   onlineButton.setAttribute('aria-pressed','false');
   presenceStatus.textContent='';
   fetch('/api/presence',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
@@ -428,6 +429,7 @@ function openPanel(kicker,title) {
   $('panel-kicker').textContent = kicker;
   $('panel-title').textContent = title;
   $('panel-body').replaceChildren();
+  if(document.pointerLockElement) document.exitPointerLock();
   if(!panel.open) panel.showModal();
   keys.clear();
   stopJoystick();
@@ -472,6 +474,50 @@ function places() {
   body.append(list);
 }
 
+function visitorProfile(person) {
+  const body=openPanel('Live visitor · '+districts[activeDistrict].name,person.name || 'Guest');
+  const role=document.createElement('p');
+  role.textContent=person.designation || 'Visiting Dharamshala';
+  body.append(role);
+}
+
+function pause() {
+  const body=openPanel(live ? 'Live in Dharamshala' : 'Exploring invisibly','Paused');
+  const actions=document.createElement('div');
+  actions.className='pause-actions';
+  function action(label,run) {
+    const button=document.createElement('button');
+    button.textContent=label;
+    button.onclick=run;
+    actions.append(button);
+  }
+  action('Resume',()=>panel.close());
+  action(live ? 'Become invisible' : 'Become visible',()=>{
+    if(live) { leaveLiveWalk(); panel.close(); }
+    else onlineButton.click();
+  });
+  action('Find someone',search);
+  action('Travel to a landmark',places);
+  if(document.fullscreenEnabled) action(document.fullscreenElement ? 'Exit full screen' : 'Full screen',async ()=>{
+    try {
+      if(document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      panel.close();
+    } catch {}
+  });
+  action('Mouse look',()=>{
+    panel.close();
+    const canvas=renderer.domElement;
+    try { canvas.requestPointerLock?.()?.catch(()=>{}); } catch {}
+  });
+  action('Back to title',()=>{
+    panel.close();
+    returnToTitle();
+  });
+  body.append(actions);
+  actions.firstElementChild.focus();
+}
+
 function search() {
   const body = openPanel('Dharamshala · fictional profiles','Find someone');
   const input = document.createElement('input');
@@ -481,17 +527,19 @@ function search() {
   const list = document.createElement('ul');
   function update() {
     const query = input.value.trim().toLowerCase();
-    const matches = people.filter(person=>[person.name,person.role,districts[person.district].name].join(' ').toLowerCase().includes(query));
+    const online=[...visitors.values()].filter(avatar=>avatar.visible).map(avatar=>avatar.userData.visitor);
+    const directory=[...online,...people];
+    const matches = directory.filter(person=>[person.name,person.role || person.designation,districts[person.district ?? activeDistrict].name].join(' ').toLowerCase().includes(query));
     list.replaceChildren();
     for(const person of matches) {
       const item = document.createElement('li');
       const link = document.createElement('button');
       const description = document.createElement('small');
-      description.textContent = person.role+' · '+districts[person.district].name;
+      description.textContent = person.story ? person.role+' · '+districts[person.district].name : (person.designation || 'Guest')+' · Live nearby';
       link.append(person.name,description);
       link.onclick = ()=>{
-        teleport(person.district);
-        profile(person);
+        if(person.story) { teleport(person.district); profile(person); }
+        else visitorProfile(person);
         panel.querySelector('.close').focus();
       };
       item.append(link);
@@ -515,9 +563,9 @@ enter.onclick = ()=>{
   $('hud').hidden = false;
   player.visible = true;
   teleport(3);
-  $('home').focus();
+  $('pause').focus();
 };
-$('home').onclick = ()=>{
+function returnToTitle() {
   stopJoystick();
   leaveLiveWalk();
   walking = false;
@@ -527,24 +575,32 @@ $('home').onclick = ()=>{
   showDistrict(3);
   $('hud').hidden = true;
   enter.focus();
-};
+}
+$('pause').onclick = pause;
 $('find').onclick = search;
 $('places').onclick = places;
 interact.onclick = ()=>{
   if(!nearby) return;
   if(nearby.story) profile(nearby);
+  else if(nearby.id) visitorProfile(nearby);
   else showLandmark(nearby);
 };
 picker.onchange = ()=>teleport(picker.selectedIndex);
 
 window.addEventListener('keydown',event=>{
   const key = event.key.length===1 ? event.key.toLowerCase() : event.key;
+  if(walking && !panel.open && key==='Escape' && !document.pointerLockElement && event.target!==picker) {
+    event.preventDefault();
+    pause();
+    return;
+  }
   if(!walking || panel.open || event.target===picker || event.ctrlKey || event.metaKey || event.altKey) return;
   if(key==='e' && !event.repeat && !interact.hidden) {
     interact.click();
     return;
   }
   if(key==='f' && !event.repeat) {
+    event.preventDefault();
     search();
     return;
   }
@@ -639,11 +695,17 @@ function frame(time) {
     const position = player.position;
     const district = districts[activeDistrict];
     nearby = people.find(person=>person.district===activeDistrict && Math.hypot(position.x-district.x-person.x,position.z-person.z)<3.2);
+    for(const avatar of visitors.values()) {
+      if(avatar.visible && position.distanceToSquared(avatar.position)<10.24) {
+        nearby=avatar.userData.visitor;
+        break;
+      }
+    }
     const place = landmarks[activeDistrict];
     if(!nearby && Math.hypot(position.x-district.x-place.x,position.z-place.z-8)<5.5) nearby = place;
     interact.hidden = !nearby || panel.open;
     if(nearby) {
-      const caption = (nearby.story ? 'Meet ' : 'Explore ') + nearby.name + ' · E';
+      const caption = (nearby.story || nearby.id ? 'View profile · ' : 'Explore ') + nearby.name + ' · E';
       if (interact.textContent!==caption) interact.textContent = caption;
     }
   } else {
@@ -679,6 +741,11 @@ try {
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener('pointermove',event=>{
+    if(document.pointerLockElement===canvas && walking && !panel.open) {
+      yaw -=event.movementX*.004;
+      pitch=THREE.MathUtils.clamp(pitch-event.movementY*.004,-.42,.65);
+      return;
+    }
     if(drag?.id!==event.pointerId) return;
     const dx = event.clientX-drag.x, dy = event.clientY-drag.y;
     if(!suppressClick && Math.hypot(dx,dy)<4) return;
@@ -697,11 +764,13 @@ try {
     pointer.set((event.clientX-bounds.left)/bounds.width*2-1,1-(event.clientY-bounds.top)/bounds.height*2);
     ray.setFromCamera(pointer,camera);
     const visibleCharacters = characters.filter(character=>people[character.userData.profile].district===activeDistrict);
-    const hit = ray.intersectObjects(visibleCharacters,true)[0];
+    const liveAvatars=[...visitors.values()].filter(avatar=>avatar.visible);
+    const hit = ray.intersectObjects([...visibleCharacters,...liveAvatars],true)[0];
     if(!hit) return;
     let target = hit.object;
-    while(target.userData.profile===undefined) target = target.parent;
-    profile(people[target.userData.profile]);
+    while(target.userData.profile===undefined && !target.userData.visitor) target = target.parent;
+    if(target.userData.visitor) visitorProfile(target.userData.visitor);
+    else profile(people[target.userData.profile]);
   });
   showDistrict(3);
   resize();
